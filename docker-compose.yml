@@ -1,0 +1,52 @@
+services:
+  app:
+    build: .
+    container_name: snmp_app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html
+    environment:
+      CI_ENVIRONMENT: development
+      # CI_ENVIRONMENT: production
+      database.default.hostname: db
+      database.default.database: snmpdb
+      database.default.username: snmpuser
+      database.default.password: snmppass
+      database.default.DBDriver: MySQLi
+    depends_on:
+      - db
+    command: >
+      bash -c "chown -R www-data:www-data /var/www/html/writable &&
+               chmod -R 775 /var/www/html/writable &&
+               apache2-foreground"
+
+  db:
+    image: mariadb:11
+    container_name: snmp_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: snmpdb
+      MYSQL_USER: snmpuser
+      MYSQL_PASSWORD: snmppass
+      MYSQL_ROOT_PASSWORD: rootpass
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/sql:/docker-entrypoint-initdb.d:ro
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: snmp_phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: db
+      PMA_USER: snmpuser
+      PMA_PASSWORD: snmppass
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+
+volumes:
+  db_data:
+
