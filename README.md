@@ -85,17 +85,12 @@ Tela principal exibe, para a sala atual:
 
 - Toda ação significativa gera um registro:
   - `schedule_id` (se originado de agendamento).
-  - `action` (por exemplo: `manual-block`, `manual-unblock`, `schedule-block-host`, `schedule-unblock-room`, etc.).
+  - `action` (`manual-block`, `manual-unblock`, `schedule-block-host`, `schedule-unblock-room`, etc.).
   - `target_mac`, `switch_ip`, `port_ifindex`.
-  - `result` com detalhes em JSON (respostas do SNMP, erros, etc.).
-- Útil para:
-  - Auditoria.
-  - Debug.
-  - Demonstração do comportamento do sistema (ex. em TCC).
-
+    
 ---
 
-## 🐳 Como executar com Docker
+## Como executar com Docker
 
 ### Pré-requisitos
 
@@ -104,13 +99,12 @@ Tela principal exibe, para a sala atual:
 
 ### Passos
 
-1. **Clonar o repositório**
-
 ```bash
+1. Clonar o repositório
 git clone https://github.com/seu-usuario/Controle-de-Acesso-Internet-SNMP.git
 cd Controle-de-Acesso-Internet-SNMP
 
-2. **Subir a stack**
+2. Subir a stack
 
     docker compose up -d --build
 
@@ -120,22 +114,22 @@ Isso iniciará:
 - `phpMyAdmin` em `http://localhost:8081`
 - `db` (MariaDB) ligado à aplicação.
 
-3. **Criar o banco de dados**
+3. Criar o banco de dados
 
 A stack já cria o banco `snmpdb` via Docker.  
 Em seguida, importe o schema:
 
-Exemplo via `mysql` dentro do container `db`:
+Via `mysql` dentro do container `db`:
 
-    docker compose exec db mysql -u root -p snmpdb < sql/schema.sql
+    docker compose exec db mysql -u root -p snmpdb < sql/01_schema.sql
 
-4. **Acessar a aplicação**
+4. Acessar a aplicação
 
 No navegador, acesse:
 
     http://localhost:8080
 
-Usuário/senha de teste podem ser descritos aqui, por exemplo:
+Usuário/senha de teste:
 
 - Usuário: `admin`
 - Senha: `admin123`
