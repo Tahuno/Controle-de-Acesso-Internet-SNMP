@@ -1,60 +1,141 @@
-# CodeIgniter 4 Framework
+# SNMP Access Control – Sistema de Controle de Acesso à Internet por Switch
 
-## What is CodeIgniter?
+Aplicação web desenvolvida como trabalho de disciplina de Gerência e Mobilidade em Redes em um ambiente de laboratório, utilizando SNMP para bloquear e liberar portas de switch de forma centralizada.
 
-CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.
-More information can be found at the [official site](https://codeigniter.com).
+O sistema permite que o professor/gerente de sala:
 
-This repository holds the distributable version of the framework.
-It has been built from the
-[development repository](https://github.com/codeigniter4/CodeIgniter4).
+- Descubra automaticamente os hosts conectados aos switches da sala.
+- Bloqueie/libere máquinas específicas.
+- Bloqueie toda a sala (exceto portas protegidas).
+- Agende bloqueios e liberações por horário.
+- Registre todas as ações em um log de auditoria.
 
-More information about the plans for version 4 can be found in [CodeIgniter 4](https://forum.codeigniter.com/forumdisplay.php?fid=28) on the forums.
+## Stack
 
-You can read the [user guide](https://codeigniter.com/user_guide/)
-corresponding to the latest version of the framework.
+- **Linguagem:** PHP
+- **Framework:** CodeIgniter 4
+- **Banco de dados:** MariaDB / MySQL
+- **Infra:** Docker + Docker Compose
+- **Protocolo de gerenciamento:** SNMP (v1/v2c)
+- **Outros:**
+  - phpMyAdmin para administração do banco
+  - Cron (Linux) para execução periódica de agendamentos
 
-## Important Change with index.php
+---
 
-`index.php` is no longer in the root of the project! It has been moved inside the *public* folder,
-for better security and separation of components.
+## Funcionalidades
 
-This means that you should configure your web server to "point" to your project's *public* folder, and
-not to the project root. A better practice would be to configure a virtual host to point there. A poor practice would be to point your web server to the project root and expect to enter *public/...*, as the rest of your logic and the
-framework are exposed.
+### 1. Descoberta de hosts via SNMP
 
-**Please** read the user guide for a better explanation of how CI4 works!
+- Comando CLI `discover:hosts` integrado à aplicação (CodeIgniter Command).
+- A aplicação faz **walk** na tabela de ponte (FDB) do switch:
+  - Obtém MACs,
+  - Mapeia MAC → porta (bridgePort → ifIndex),
+  - Descobre descrição da porta (`ifDescr`),
+  - Popula/atualiza a tabela `hosts`.
 
-## Repository Management
+### 2. Dashboard de Hosts (interface web)
 
-We use GitHub issues, in our main repository, to track **BUGS** and to track approved **DEVELOPMENT** work packages.
-We use our [forum](http://forum.codeigniter.com) to provide SUPPORT and to discuss
-FEATURE REQUESTS.
+Tela principal exibe, para a sala atual:
 
-This repository is a "distribution" one, built by our release preparation script.
-Problems with it can be raised on our forum, or as issues in the main repository.
+- **MAC / IP** do host
+- **Nome do host** (quando cadastrado)
+- **Switch** ao qual está conectado
+- **Porta** (descrição + `ifIndex`)
+- **Estado**: 
+  - Liberado
+  - Bloqueado
+  - Desconhecido (quando não é possível determinar)
+- **Last seen**: última vez visto via SNMP
+- Ações:
+  - **Bloquear** host
+  - **Liberar** host
+  - **Bloquear sala** (em massa, exceto portas protegidas)
+  - **Descobrir sala**
+  - **Atualizar hosts**
 
-## Contributing
+### 3. Bloqueio e liberação de portas
 
-We welcome contributions from the community.
+- Utiliza SNMP para alterar `ifAdminStatus` da porta:
+  - `up` → porta ativa (host liberado)
+  - `down` → porta desativada (host bloqueado)
+- A aplicação:
+  - Localiza switch + `port_ifindex` a partir do MAC,
+  - Envia o comando SNMP,
+  - Atualiza o estado no banco,
+  - Registra a ação em `actions_log`.
 
-Please read the [*Contributing to CodeIgniter*](https://github.com/codeigniter4/CodeIgniter4/blob/develop/CONTRIBUTING.md) section in the development repository.
+### 4. Agendamentos (schedules)
 
-## Server Requirements
+- Tela para criação de agendamentos:
+  - Bloquear/liberar **host específico** (`target_mac`) ou **sala inteira**.
+  - Definição de `start_at` e, opcionalmente, `end_at`.
+- Estados do agendamento:
+  - `pending` → aguardando início.
+  - `running` → em execução (janela ativa).
+  - `finished` → já executado (bloqueio e liberação, se houver).
+- Comando CLI periódicamente executado:
+  - `php spark run:schedules`
+- Responsável por:
+  - Iniciar bloqueios quando `now >= start_at`.
+  - Liberar (se configurado) quando `now >= end_at`.
+  - Atualizar status e registrar logs detalhados.
 
-PHP version 8.1 or higher is required, with the following extensions installed:
+### 5. Logs de ações (`actions_log`)
 
-- [intl](http://php.net/manual/en/intl.requirements.php)
-- [mbstring](http://php.net/manual/en/mbstring.installation.php)
+- Toda ação significativa gera um registro:
+  - `schedule_id` (se originado de agendamento).
+  - `action` (por exemplo: `manual-block`, `manual-unblock`, `schedule-block-host`, `schedule-unblock-room`, etc.).
+  - `target_mac`, `switch_ip`, `port_ifindex`.
+  - `result` com detalhes em JSON (respostas do SNMP, erros, etc.).
+- Útil para:
+  - Auditoria.
+  - Debug.
+  - Demonstração do comportamento do sistema (ex. em TCC).
 
-> [!WARNING]
-> - The end of life date for PHP 7.4 was November 28, 2022.
-> - The end of life date for PHP 8.0 was November 26, 2023.
-> - If you are still using PHP 7.4 or 8.0, you should upgrade immediately.
-> - The end of life date for PHP 8.1 will be December 31, 2025.
+---
 
-Additionally, make sure that the following extensions are enabled in your PHP:
+## 🐳 Como executar com Docker
 
-- json (enabled by default - don't turn it off)
-- [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) if you plan to use MySQL
-- [libcurl](http://php.net/manual/en/curl.requirements.php) if you plan to use the HTTP\CURLRequest library
+### Pré-requisitos
+
+- Docker
+- Docker Compose
+
+### Passos
+
+1. **Clonar o repositório**
+
+```bash
+git clone https://github.com/seu-usuario/Controle-de-Acesso-Internet-SNMP.git
+cd Controle-de-Acesso-Internet-SNMP
+
+2. **Subir a stack**
+
+    docker compose up -d --build
+
+Isso iniciará:
+
+- `app` em `http://localhost:8080`
+- `phpMyAdmin` em `http://localhost:8081`
+- `db` (MariaDB) ligado à aplicação.
+
+3. **Criar o banco de dados**
+
+A stack já cria o banco `snmpdb` via Docker.  
+Em seguida, importe o schema:
+
+Exemplo via `mysql` dentro do container `db`:
+
+    docker compose exec db mysql -u root -p snmpdb < sql/schema.sql
+
+4. **Acessar a aplicação**
+
+No navegador, acesse:
+
+    http://localhost:8080
+
+Usuário/senha de teste podem ser descritos aqui, por exemplo:
+
+- Usuário: `admin`
+- Senha: `admin123`
